@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "TextTrainer",
     platforms: [
-        .macOS(.v11)
+        .macOS(.v13)
     ],
     products: [
         .executable(name: "TextTrainer", targets: ["TextTrainer"])

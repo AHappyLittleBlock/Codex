@@ -9,38 +9,57 @@ struct ContentView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Add Training Example")
-                .font(.headline)
-            TextField("Text", text: $inputText, axis: .vertical)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            TextField("Label", text: $inputLabel)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            Button("Add Example") {
-                guard !inputText.isEmpty, !inputLabel.isEmpty else { return }
-                trainer.addExample(text: inputText, label: inputLabel)
-                inputText = ""
-                inputLabel = ""
+            Form {
+                Section(header: Text("New Examples")) {
+                    TextField("Label", text: $inputLabel)
+                    TextEditor(text: $inputText)
+                        .frame(height: 80)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray.opacity(0.3)))
+                    Text("Enter multiple lines of text. Each line will be added as a training example.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Add Examples") {
+                        guard !inputText.isEmpty, !inputLabel.isEmpty else { return }
+                        trainer.addExamples(textBlock: inputText, label: inputLabel)
+                        inputText = ""
+                        inputLabel = ""
+                    }
+                }
+
+                Section(header: Text("Training Data")) {
+                    List {
+                        ForEach(trainer.examples) { example in
+                            HStack {
+                                Text(example.label).bold()
+                                Text(example.text)
+                            }
+                        }
+                        .onDelete(perform: trainer.removeExamples)
+                    }
+                    .frame(maxHeight: 150)
+                }
+
+                Section(header: Text("Model")) {
+                    Button("Train Model") {
+                        trainer.train()
+                    }
+                    Text(trainer.status)
+                        .foregroundColor(.secondary)
+                }
+
+                Section(header: Text("Predict")) {
+                    TextEditor(text: $predictText)
+                        .frame(height: 60)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray.opacity(0.3)))
+                    Button("Predict") {
+                        prediction = trainer.predict(predictText) ?? ""
+                    }
+                    Text("Prediction: \(prediction)")
+                }
             }
-            Divider()
-            Button("Train Model") {
-                trainer.train()
-            }
-            Text(trainer.status)
-                .foregroundColor(.secondary)
-                .padding(.bottom)
-            Divider()
-            Text("Run Prediction")
-                .font(.headline)
-            TextField("Text", text: $predictText, axis: .vertical)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            Button("Predict") {
-                prediction = trainer.predict(predictText) ?? ""
-            }
-            Text("Prediction: \(prediction)")
-            Spacer()
         }
         .padding()
-        .frame(width: 400, height: 500)
+        .frame(minWidth: 500, minHeight: 600)
     }
 }
 

@@ -18,6 +18,20 @@ class Trainer: ObservableObject {
         examples.append(example)
     }
 
+    func addExamples(textBlock: String, label: String) {
+        let lines = textBlock
+            .split(whereSeparator: { $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        for line in lines {
+            addExample(text: line, label: label)
+        }
+    }
+
+    func removeExamples(at offsets: IndexSet) {
+        examples.remove(atOffsets: offsets)
+    }
+
     func train() {
         let rows = examples.map { ["text": $0.text, "label": $0.label] }
         guard let data = try? MLDataTable(dictionary: ["text": rows.map { $0["text"]! },
