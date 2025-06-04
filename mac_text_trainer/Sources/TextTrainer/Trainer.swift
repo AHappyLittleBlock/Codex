@@ -3,49 +3,67 @@ import CreateML
 import NaturalLanguage
 import SwiftUI
 
-struct TrainingExample: Identifiable, Codable {
-    let id = UUID()
+struct TextLabel: Identifiable, Codable {
+    var id = UUID()
+    var name: String
+    var examples: [String] = []
+}
+
+struct TestCase: Identifiable, Codable {
+    var id = UUID()
     var text: String
-    var label: String
 }
 
 class Trainer: ObservableObject {
-    @Published var examples: [TrainingExample] = []
+    @Published var labels: [TextLabel] = []
+    @Published var testCases: [TestCase] = []
     @Published var status: String = "Idle"
     @Published var trainingProgress: Double = 0
+    @Published var trainingFinished: Bool = false
+
     private var classifier: NLModel?
     private let settings: AppSettings
 
     init(settings: AppSettings) {
         self.settings = settings
-        loadExamples()
+        load()
     }
 
-    func addExample(text: String, label: String) {
-        let example = TrainingExample(text: text, label: label)
-        examples.append(example)
-        saveExamples()
+    // MARK: - Label Management
+
+    func addLabel() {
+        labels.append(TextLabel(name: ""))
+        save()
     }
 
-    func addExamples(textBlock: String, label: String) {
+    func removeLabels(at offsets: IndexSet) {
+        labels.remove(atOffsets: offsets)
+        save()
+    }
+
+    func addExamples(_ textBlock: String, to label: TextLabel) {
+        guard let index = labels.firstIndex(where: { $0.id == label.id }) else { return }
         let lines = textBlock
             .split(whereSeparator: { $0.isNewline })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        for line in lines {
-            addExample(text: line, label: label)
-        }
+        labels[index].examples.append(contentsOf: lines)
+        save()
     }
 
-    func removeExamples(at offsets: IndexSet) {
-        examples.remove(atOffsets: offsets)
-        saveExamples()
+    func addExample(_ text: String, to label: TextLabel) {
+        addExamples(text, to: label)
     }
 
     func train() {
-        let rows = examples.map { ["text": $0.text, "label": $0.label] }
-        guard let data = try? MLDataTable(dictionary: ["text": rows.map { $0["text"]! },
-                                             "label": rows.map { $0["label"]! }]) else {
+        let allExamples = labels.flatMap { label in
+            label.examples.map { (text: $0, label: label.name) }
+        }
+        guard !allExamples.isEmpty else { return }
+        guard let data = try? MLDataTable(dictionary: [
+            "text": allExamples.map { $0.text },
+            "label": allExamples.map { $0.label }
+        ]) else {
             status = "Failed to build table"
             return
         }
@@ -62,6 +80,7 @@ class Trainer: ObservableObject {
                     self.classifier = nl
                     self.status = "Training complete. Model saved to \(fileURL.path)"
                     self.trainingProgress = 1
+                    self.trainingFinished = true
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -71,37 +90,56 @@ class Trainer: ObservableObject {
         }
     }
 
-    func predict(_ text: String) -> String? {
-        classifier?.predictedLabel(for: text)
+    func predictProbabilities(_ text: String) -> [(String, Double)]? {
+        guard let classifier else { return nil }
+        let hyps = classifier.predictedLabelHypotheses(for: text, maximumCount: labels.count)
+        return hyps.sorted { $0.value > $1.value }
+    }
+
+    func addTestCase(_ text: String) {
+        let tc = TestCase(text: text)
+        testCases.append(tc)
+        save()
     }
 
     // MARK: - Persistence
 
     private var storeURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("examples.json")
+            .appendingPathComponent("labels.json")
     }
 
-    private func saveExamples() {
+    private var testsURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("tests.json")
+    }
+
+    private func save() {
         do {
-            let data = try JSONEncoder().encode(examples)
+            let data = try JSONEncoder().encode(labels)
             try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: storeURL)
+            let tdata = try JSONEncoder().encode(testCases)
+            try tdata.write(to: testsURL)
         } catch {
-            print("Failed to save examples: \(error)")
+            print("Failed to save data: \(error)")
         }
     }
 
-    private func loadExamples() {
-        guard let data = try? Data(contentsOf: storeURL) else { return }
-        if let decoded = try? JSONDecoder().decode([TrainingExample].self, from: data) {
-            examples = decoded
+    private func load() {
+        if let data = try? Data(contentsOf: storeURL),
+           let decoded = try? JSONDecoder().decode([TextLabel].self, from: data) {
+            labels = decoded
+        }
+        if let tdata = try? Data(contentsOf: testsURL),
+           let decoded = try? JSONDecoder().decode([TestCase].self, from: tdata) {
+            testCases = decoded
         }
     }
 
     // MARK: - Data Generation
 
-    func generateData(prompt: String, label: String, completion: @escaping () -> Void) {
+    func generateData(prompt: String, for label: TextLabel, completion: @escaping () -> Void) {
         guard !settings.apiKey.isEmpty else { return }
         status = "Generating..."
         let provider = settings.apiProvider
@@ -133,9 +171,8 @@ class Trainer: ObservableObject {
             else { return }
             let lines = raw.split(whereSeparator: Character.isNewline).map { String($0) }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             DispatchQueue.main.async {
-                for line in lines {
-                    self.addExample(text: line, label: label)
-                }
+                let block = lines.joined(separator: "\n")
+                self.addExamples(block, to: label)
                 self.status = "Idle"
             }
         }

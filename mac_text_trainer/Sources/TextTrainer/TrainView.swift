@@ -2,75 +2,93 @@ import SwiftUI
 
 struct TrainView: View {
     @EnvironmentObject var trainer: Trainer
-    @State private var inputText: String = ""
-    @State private var inputLabel: String = ""
-    @State private var showPromptSheet = false
+    @Binding var selectedTab: Int
+    @State private var showPromptFor: TextLabel?
+    @State private var showTextSheetFor: TextLabel?
+    @State private var textBlock: String = ""
     @State private var prompt: String = ""
+    @State private var isTraining = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    TextField("Label", text: $inputLabel)
-                    Spacer()
-                    Menu("Add Data") {
-                        Button("Add Text") { addExamples() }
-                        Button("Paste Spaced Text") { addExamples() }
-                        Button("Generate Data") { showPromptSheet = true }
+            VStack(alignment: .leading, spacing: 24) {
+                ForEach($trainer.labels) { $label in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            TextField("Label", text: $label.name)
+                            Spacer()
+                            Menu {
+                                Button("Add Text") { showTextSheetFor = label; textBlock = "" }
+                                Button("Paste Spaced Text") { showTextSheetFor = label; textBlock = "" }
+                                Button(action: { showPromptFor = label; prompt = "" }) {
+                                    Text("Generate Data")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                            }
+                        }
+                        if let ex = label.examples.first {
+                            Text(isTraining ? scramble(ex) : ex)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        if isTraining {
+                            ProgressView(value: trainer.trainingProgress)
+                        }
+                        Divider()
                     }
                 }
-                TextEditor(text: $inputText)
-                    .frame(height: 100)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3)))
-                if trainer.trainingProgress > 0 && trainer.trainingProgress < 1 {
-                    ProgressView(value: trainer.trainingProgress)
-                        .progressViewStyle(LinearProgressViewStyle())
-                }
-                Button(action: { trainer.train() }) {
-                    Text("Train Model")
-                        .frame(maxWidth: .infinity)
+                Button("+ Section") { trainer.addLabel() }
+                    .buttonStyle(.bordered)
+                Button("Train") {
+                    isTraining = true
+                    trainer.trainingFinished = false
+                    trainer.train()
                 }
                 .buttonStyle(.borderedProminent)
-                Text(trainer.status)
-                    .foregroundColor(.secondary)
-                List {
-                    ForEach(trainer.examples) { ex in
-                        HStack {
-                            Text(ex.label).bold()
-                            Text(ex.text)
-                        }
-                    }
-                    .onDelete(perform: trainer.removeExamples)
-                }
-                .frame(height: 200)
+                Text(trainer.status).foregroundColor(.secondary)
             }
             .padding()
         }
-        .sheet(isPresented: $showPromptSheet) {
-            VStack(spacing: 12) {
+        .onReceive(trainer.$trainingFinished) { done in
+            if done {
+                isTraining = false
+                selectedTab = 1
+            }
+        }
+        .sheet(item: $showTextSheetFor) { label in
+            VStack {
+                TextEditor(text: $textBlock).frame(height: 120)
+                Button("Save") {
+                    trainer.addExamples(textBlock, to: label)
+                    showTextSheetFor = nil
+                }.buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .frame(width: 300)
+        }
+        .sheet(item: $showPromptFor) { label in
+            VStack {
                 TextField("Prompt", text: $prompt)
                 Button("Generate") {
-                    trainer.generateData(prompt: prompt, label: inputLabel) {
-                        showPromptSheet = false
+                    trainer.generateData(prompt: prompt, for: label) {
+                        showPromptFor = nil
                     }
-                }
-                .buttonStyle(.borderedProminent)
+                }.buttonStyle(.borderedProminent)
             }
             .padding()
             .frame(width: 300)
         }
     }
 
-    private func addExamples() {
-        guard !inputText.isEmpty, !inputLabel.isEmpty else { return }
-        trainer.addExamples(textBlock: inputText, label: inputLabel)
-        inputText = ""
+    private func scramble(_ text: String) -> String {
+        String(text.map { _ in "abcdefghijklmnopqrstuvwxyz".randomElement()! })
     }
 }
 
 struct TrainView_Previews: PreviewProvider {
     static var previews: some View {
-        TrainView()
+        TrainView(selectedTab: .constant(0))
             .environmentObject(Trainer(settings: AppSettings()))
     }
 }

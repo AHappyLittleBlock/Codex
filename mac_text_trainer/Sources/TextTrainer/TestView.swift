@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct PredictView: View {
+struct TestView: View {
     @EnvironmentObject var trainer: Trainer
     @State private var text: String = ""
     @State private var results: [(String, Double)] = []
@@ -10,15 +10,20 @@ struct PredictView: View {
             TextEditor(text: $text)
                 .frame(height: 80)
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3)))
-            Button("Guess") {
-                if let label = trainer.predict(text) {
-                    results = [(label, 1.0)]
+            HStack {
+                Button("Guess") {
+                    if let r = trainer.predictProbabilities(text) {
+                        results = r
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+                Button("Save") { trainer.addTestCase(text) }
             }
-            .buttonStyle(.borderedProminent)
             ForEach(results, id: \.0) { item in
+                let maxVal = results.first?.1 ?? 0
                 HStack {
                     Text(item.0)
+                        .fontWeight(item.1 == maxVal ? .bold : .regular)
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Rectangle().fill(Color.gray.opacity(0.2))
@@ -31,13 +36,21 @@ struct PredictView: View {
                 }
             }
             Spacer()
+            Divider()
+            if !trainer.testCases.isEmpty {
+                Text("Saved Spaces:").bold()
+                ForEach(trainer.testCases) { tc in
+                    Button(tc.text) { text = tc.text }
+                        .buttonStyle(.plain)
+                }
+            }
         }
         .padding()
     }
 }
 
-struct PredictView_Previews: PreviewProvider {
+struct TestView_Previews: PreviewProvider {
     static var previews: some View {
-        PredictView().environmentObject(Trainer(settings: AppSettings()))
+        TestView().environmentObject(Trainer(settings: AppSettings()))
     }
 }
