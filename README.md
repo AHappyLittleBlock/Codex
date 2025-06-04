@@ -8,3 +8,5 @@ This repository contains sample code for various machine learning tasks.
   images and convert it to Core ML for iPhone or Mac apps.
 - `mac_text_trainer/` – Simple SwiftUI app to train a text classifier entirely
   offline on macOS.
+- `text_generation/` – Script to call OpenAI or Gemini to generate text and
+  remove blank lines from the result.
