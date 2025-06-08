@@ -1,6 +1,6 @@
 # Road Trip Simulator Skeleton
 
-This folder contains a minimal SpriteKit-based example of an endless road trip simulator for iPad. The project now features simple fuel, hunger, and rest mechanics along with obstacles. It cycles from day to night and includes a basic score based on distance travelled. The scene now starts with a "Tap to Start" prompt and shows a "Game Over" message when you run out of health, fuel, hunger, or rest. Biomes change colour as you drive further.
+This folder contains a minimal SpriteKit-based example of an endless road trip simulator for iPad. The project now features fuel, hunger, rest and health bars, random obstacles, fuel pumps and rest stops. Animals appear at night and collisions reduce health. Biomes cycle colours as distance increases. A start screen appears on launch and the game ends with a summary of distance travelled.
 
 **Note:** This is still only a starting point. A full game would require additional code for proper physics, better UI, saving, and more content.
 

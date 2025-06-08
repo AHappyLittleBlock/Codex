@@ -15,6 +15,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
 
     private var car: SKSpriteNode!
     private var road: SKSpriteNode!
+    private var roadWidth: CGFloat = 0
+    private var roadLeft: CGFloat { (size.width - roadWidth) / 2 }
+    private var roadRight: CGFloat { size.width - roadLeft }
     private var timeOfDay: CGFloat = 0.0 // 0 = day, 1 = night
 
     private var phase: GamePhase = .ready
@@ -54,7 +57,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
 
     func setupRoad() {
-        road = SKSpriteNode(color: .darkGray, size: CGSize(width: size.width, height: size.height))
+        roadWidth = size.width * 0.6
+        road = SKSpriteNode(color: .darkGray,
+                            size: CGSize(width: roadWidth, height: size.height))
         road.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         road.position = CGPoint(x: size.width/2, y: size.height/2)
         addChild(road)
@@ -115,7 +120,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     func showGameOver() {
         phase = .gameOver
         removeAllActions()
-        messageLabel.text = "Game Over - Tap"
+        messageLabel.text = "Game Over - Tap" + "\nDistance: \(Int(distance))m"
+        messageLabel.numberOfLines = 2
         messageLabel.isHidden = false
         isPaused = true
     }
@@ -145,7 +151,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             guard let self = self else { return }
             if self.timeOfDay > 0.5 { // only at night
                 let animal = SKSpriteNode(color: .brown, size: CGSize(width: 30, height: 30))
-                animal.position = CGPoint(x: CGFloat.random(in: 50...self.size.width-50), y: self.size.height + 20)
+                animal.position = CGPoint(x: CGFloat.random(in: self.roadLeft+20...self.roadRight-20),
+                                          y: self.size.height + 20)
                 animal.physicsBody = SKPhysicsBody(rectangleOf: animal.size)
                 animal.physicsBody?.isDynamic = false
                 animal.physicsBody?.categoryBitMask = PhysicsCategory.animal
@@ -164,7 +171,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let spawn = SKAction.run { [weak self] in
             guard let self = self else { return }
             let obstacle = SKSpriteNode(color: .gray, size: CGSize(width: 40, height: 40))
-            obstacle.position = CGPoint(x: CGFloat.random(in: 40...self.size.width-40), y: self.size.height + 20)
+            obstacle.position = CGPoint(x: CGFloat.random(in: self.roadLeft+20...self.roadRight-20),
+                                         y: self.size.height + 20)
             obstacle.physicsBody = SKPhysicsBody(rectangleOf: obstacle.size)
             obstacle.physicsBody?.isDynamic = false
             obstacle.physicsBody?.categoryBitMask = PhysicsCategory.obstacle
@@ -182,7 +190,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let spawn = SKAction.run { [weak self] in
             guard let self = self else { return }
             let pump = SKSpriteNode(color: .green, size: CGSize(width: 30, height: 60))
-            pump.position = CGPoint(x: CGFloat.random(in: 40...self.size.width-40), y: self.size.height + 20)
+            pump.position = CGPoint(x: CGFloat.random(in: self.roadLeft+20...self.roadRight-20),
+                                     y: self.size.height + 20)
             pump.physicsBody = SKPhysicsBody(rectangleOf: pump.size)
             pump.physicsBody?.isDynamic = false
             pump.physicsBody?.categoryBitMask = PhysicsCategory.fuel
@@ -200,7 +209,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let spawn = SKAction.run { [weak self] in
             guard let self = self else { return }
             let rest = SKSpriteNode(color: .blue, size: CGSize(width: 50, height: 60))
-            rest.position = CGPoint(x: CGFloat.random(in: 40...self.size.width-40), y: self.size.height + 20)
+            rest.position = CGPoint(x: CGFloat.random(in: self.roadLeft+20...self.roadRight-20),
+                                     y: self.size.height + 20)
             rest.physicsBody = SKPhysicsBody(rectangleOf: rest.size)
             rest.physicsBody?.isDynamic = false
             rest.physicsBody?.categoryBitMask = PhysicsCategory.rest
@@ -226,7 +236,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let location = touches.first?.location(in: self) else { return }
-        car.position.x = location.x
+        car.position.x = max(roadLeft + 20, min(location.x, roadRight - 20))
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -245,6 +255,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         hungerBar.xScale = max(hunger, 0)
         restBar.xScale = max(rest, 0)
         healthBar.xScale = max(health, 0)
+
+        if car.position.x < roadLeft || car.position.x > roadRight {
+            health -= 0.01
+        }
+
         if fuel <= 0 || hunger <= 0 || rest <= 0 || health <= 0 {
             showGameOver()
         }
